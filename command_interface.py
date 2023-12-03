@@ -1,20 +1,20 @@
 import socket
+from network import SocketManager, ServerMode, get_local_ip
+class Client:
+    def __init__(self, server:SocketManager) -> None:
+        self.server = server
 
-def send_command(command):
-    host = '127.0.0.1'  # The server's hostname or IP address
-    port = 12345        # The port used by the server
-
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.connect((host, port))
-        s.sendall(command.encode())
-        print(f"Command sent: {command}")
+    def run(self):
+        self.server.send("hi from client")
+        print(self.server.receive(1024))
 
 def main():
-    while True:
-        cmd = input("Enter command: ")
-        if cmd.lower() == 'exit':
-            break
-        send_command(cmd)
+    server_ip = input("Enter server IP address: ")
+    host = get_local_ip() if server_ip == "" else server_ip
+    port = 12345
+    with SocketManager(host=host, port=port, mode=ServerMode.CLIENT) as server:
+        client = Client(server)
+        client.run()
 
 if __name__ == "__main__":
     main()

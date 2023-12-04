@@ -1,62 +1,59 @@
-from network import SocketManager, get_local_ip
-from dataclasses import dataclass
+import network
 import socket
 
-STATUS_SUCCESS = 200
-STATUS_CLIENT_DISCONNECTED = 201
-STATUS_ERROR = 300
-
-@dataclass
-class Client:
-    connection: socket.socket
-    address: tuple  # (IP, Port)
 
 class Server:
-    def __init__(self, server: SocketManager) -> None:
-        self.server = server
-        self.active = True
+    def __init__(self, server_conn: network.SocketManager) -> None:
+        self.server_conn = server_conn
+        self.server_conn.init_sever()
+        self.status: network.ConnectionStatus = network.ConnectionStatus.CONNECTED
 
-    def handle_client(self, client: Client) -> int:
-        print(f"Server connected to: {client.address}")
-        while True:
+    def handle_client_logic(self, client: network.Client):
+        data = client.connection.recv(1024)
+        if not data:
+            client.status = network.ConnectionStatus.CLIENT_DISCONNECTED
+            return
+
+        print(f"{client.address}: {data}")
+        client.connection.send(f"Response to {client.address}: {data}".encode())
+
+    def handle_client(self, client: network.Client) -> int:
+        print(f"[Server] connection started with: {client.address}")
+
+        while client.status == network.ConnectionStatus.CONNECTED:
             try:
-                data = client.connection.recv(1024)
-                if not data:
-                    return STATUS_CLIENT_DISCONNECTED
-                print(f"{client.address}: {data}")
-                .send(f"Hey server response: {data}")
+                self.handle_client_logic(client)
             except Exception as e:
-                print(f"Error handling client {client.address}: {e}")
-                return STATUS_ERROR
+                print(f"[Server] Error handling client {client.address}: {e}")
+                return network.StatusCodes.ERROR
 
     def handle_connection(self):
         try:
-            connection, address = self.server.socket.accept()
-            client = Client(connection, address)
+            connection, address = self.server_conn.socket.accept()
+            client = network.Client(connection, address, network.ConnectionStatus.CONNECTED)
             with client.connection:
-                status = self.handle_client(client)
-            print(f"Client got disconnected: {status}")
+                exit_status = self.handle_client(client)
+            print(f"[Server] Client got disconnected: {exit_status}")
         except socket.timeout:
             pass
         except Exception as e:
-            print(f"An error occurred during connection: {e}")
+            print(f"[Server] An error occurred during connection: {e}")
 
     def run(self):
-        while self.active:
-            print("Server waiting for connection...")
+        while self.status == network.ConnectionStatus.CONNECTED:
+            print("[Server] waiting for new connection...")
             self.handle_connection()
 
-        # Server shutdown logic here if needed
-        print("Server shutdown.")
+        print("[Server] shutdown.")
 
 class Worker:
     pass
 
 def main():
-    host = get_local_ip()
+    host = network.get_local_ip()
     port = 12345
-    with SocketManager(host=host, port=port) as server_con:
-        server = Server(server_con)
+    with network.SocketManager(host=host, port=port) as server_conn:
+        server = Server(server_conn)
         server.run()
 
 if __name__ == "__main__":

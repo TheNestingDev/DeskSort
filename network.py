@@ -1,22 +1,35 @@
 import socket
 from enum import Enum, auto
-
-def get_local_ip():
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-        s.connect(("8.8.8.8", 80))
-        return s.getsockname()[0]
+from dataclasses import dataclass
 
 class ConnectionStatus(Enum):
     CONNECTED = auto()
     DISCONNECTED = auto()
     CONNECTION_FAILED = auto()
     NOT_INITIALIZED = auto()
-    USER_DISCONNECTED = auto()
+    CLIENT_DISCONNECTED = auto()
     SERVER_DISCONNECTED = auto()
+
+class ServerStatus(Enum):
+    ACTIVE = auto()
+    STOPPED = auto()
+    STOPPED_ERROR = auto()
+    STOPPED_MANUAL = auto()
 
 class ServerMode(Enum):
     SERVER = auto()
     CLIENT = auto()
+
+class StatusCodes(Enum):
+    SUCCESS = 200
+    CLIENT_DISCONNECTED = 201
+    ERROR = 300
+
+@dataclass
+class Client:
+    connection: socket.socket
+    address: tuple  # (IP, Port)
+    status: ConnectionStatus
 
 class SocketManager:
     def __init__(self, host:str='127.0.0.1', port:int=12345, mode:ServerMode=ServerMode.SERVER):
@@ -26,33 +39,26 @@ class SocketManager:
         self.socket:socket.socket = None
         self.connection_status:ConnectionStatus = ConnectionStatus.NOT_INITIALIZED
 
-    def _init_sever(self):
+    def init_sever(self):
         self.socket.bind((self.host, self.port))
         self.socket.listen()
-        print(f"Server started on {self.host}:{self.port}")
+        print(f"[SocketManager] Server started on {self.host}:{self.port}")
 
-    def _init_client(self):
+    def init_client(self):
         self.socket.connect((self.host, self.port))
-        print(f"Connected to server at {self.host}:{self.port}")
+        print(f"[SocketManager] Connected to server at {self.host}:{self.port}")
 
     def __enter__(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        if self.mode == ServerMode.SERVER:
-            self._init_sever()
-        elif self.mode == ServerMode.CLIENT:
-            self._init_client()
-        else:
-            raise NotImplementedError(f"{self.mode} is not currently supported")
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.socket:
             self.socket.close()
-        print("Socket closed.")
+        print("[SocketManager] Socket closed.")
         return False
 
-    def send(self, message:str, conn:socket.socket):
-        socket.send(message.encode())
-
-    def receive(self, expected_size:int):
-        return self.socket.recv(expected_size)
+def get_local_ip():
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        s.connect(("8.8.8.8", 80))
+        return s.getsockname()[0]
